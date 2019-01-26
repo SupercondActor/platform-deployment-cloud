@@ -73,9 +73,7 @@ function EnsureKeyVault([string]$Name, [string]$ResourceGroupName, [string]$Loca
 }
 
 function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [string]$certPassword, $KeyVaultName, [string]$folder)
-{
-    Write-Host "$(Get-Date -Format T) - Creating self-signed certificate with dns name $DnsName"
-    
+{   
     $filePath = "$folder\$DnsName.pfx"
 
     $securePassword = ConvertTo-SecureString $certPassword -AsPlainText -Force
@@ -86,7 +84,7 @@ function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [strin
     Write-Host "$(Get-Date -Format T) - Exported certificate to $filePath"
 
     $kvCert = Import-AzureKeyVaultCertificate -VaultName $KeyVaultName -Name $certName -FilePath $filePath -Password $securePassword
-    Write-Host ("$(Get-Date -Format T) - Imported certificate to key vault: " + $kvCert.SecretId)
+    Write-Host ("$(Get-Date -Format T) - Imported certificate to key vault: " + $kvCert.SecretId) -ForegroundColor Green
     
     $thumbprint
     $kvCert.SecretId

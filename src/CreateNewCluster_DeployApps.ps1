@@ -121,10 +121,6 @@ $user = Get-AzureADUser -ObjectId $accountId
 $spId = $ConfObj.ServicePrincipalId
 $appRole = $ConfObj.AppRoles | Where-Object { $_.DisplayName -eq $app_role_name }
 
-Write-Host ("user.ObjectId: " + $user.ObjectId)
-Write-Host ("ResourceId: " + $spId)
-Write-Host ("appRole.Id: " + $appRole.Id)
-
 # Assign the user to the app role
 New-AzureADUserAppRoleAssignment -ObjectId $user.ObjectId -PrincipalId $user.ObjectId -ResourceId $spId -Id $appRole.Id
 
@@ -137,7 +133,7 @@ $keyVault = EnsureKeyVault $vaultname $groupname $clusterLoc
 $thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $outputfolder
 
 
-Write-Host ((Get-Date -Format T) + " - Building your cluster. It can take up to 40 minutes, please wait....") -ForegroundColor Yellow
+Write-Host ((Get-Date -Format T) + " - Building your cluster. It can take up to 10 minutes, please wait....") -ForegroundColor Yellow
 
 
 $armParameters = @{
@@ -156,7 +152,7 @@ $armParameters = @{
 
 New-AzureRmResourceGroupDeployment `
   -ResourceGroupName $groupname `
-  -TemplateFile "$PSScriptRoot\cluster.oms.json" `
+  -TemplateFile "$PSScriptRoot\cluster.template.json" `
   -Mode Incremental `
   -TemplateParameterObject $armParameters `
   -Verbose

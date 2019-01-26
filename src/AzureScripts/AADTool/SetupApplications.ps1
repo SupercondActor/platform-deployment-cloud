@@ -89,8 +89,6 @@ Param
     $AddResourceAccess
 )
 
-Write-Host 'TenantId = ' $TenantId
-
 . "$PSScriptRoot\Common.ps1"
 
 $graphAPIFormat = $resourceUrl + "/" + $TenantId + "/{0}?api-version=1.5"
@@ -257,12 +255,3 @@ $oauth2PermissionGrants = @{
 CallGraphAPI $uri $headers $oauth2PermissionGrants | Out-Null
 
 $ConfigObj
-
-#ARM template
-Write-Host
-Write-Host '-----ARM template-----'
-Write-Host '"azureActiveDirectory": {'
-Write-Host ("  `"tenantId`":`"{0}`"," -f $ConfigObj.TenantId)
-Write-Host ("  `"clusterApplication`":`"{0}`"," -f $ConfigObj.WebAppId)
-Write-Host ("  `"clientApplication`":`"{0}`"" -f $ConfigObj.NativeClientAppId)
-Write-Host "},"
