@@ -130,7 +130,8 @@ $groupname = EnsureNewResourceGroup $clusterName $clusterLoc
 ### create vault and certificate
 $keyVault = EnsureKeyVault $vaultname $groupname $clusterLoc
 
-$thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $outputfolder
+$certFilePath = "$outputfolder\$subname.pfx"
+$thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $certFilePath
 
 
 Write-Host ((Get-Date -Format T) + " - Building your cluster. It can take up to 10 minutes, please wait....") -ForegroundColor Yellow
@@ -144,7 +145,7 @@ $armParameters = @{
     certificateUrlValue = $certUrl;
     durabilityLevel = "Bronze";
     reliabilityLevel = "Bronze";
-    vmInstanceCount = 3;
+    vmInstanceCount = $clusterSize;
     aadTenantId = $tenantId;
     aadClusterApplicationId = $ConfObj.WebAppId;
     aadClientApplicationId = $ConfObj.NativeClientAppId;
@@ -157,3 +158,76 @@ New-AzureRmResourceGroupDeployment `
   -TemplateParameterObject $armParameters `
   -Verbose
 
+### Split .pfx certificate file into .key and .crt files, put them into the Traefik service definition inside the Manager App package
+$managerPackagePath = Join-Path $PSScriptRoot "ManagerAppPackage"
+$servicePackagePath = Join-Path $PSScriptRoot "ServiceAppPackage"
+
+$keyFile = Join-Path $managerPackagePath "TraefikPkg\Code\certs\cluster.key"
+openssl pkcs12 -in $certFilePath -nocerts -nodes -out $keyFile -passin pass:$certPassword
+
+$crtFile = Join-Path $PSScriptRoot "ManagerAppPackage\TraefikPkg\Code\certs\cluster.crt"
+openssl pkcs12 -in $certFilePath -clcerts -nokeys -out $crtFile -passin pass:$certPassword
+
+# get certificate thumbprint
+$certPrint = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+$certPrint.Import($crtFile)   
+$thumbprint = $certPrint.Thumbprint
+
+Write-Host "$(Get-Date -Format T) - Application package updated with the cluster certificate." -ForegroundColor Green
+
+### Deploy application package
+Write-Host "Deploying Manager application package..." -ForegroundColor Yellow
+
+$appParams = @{"SupercondActor.Platform.WebManager_AuthClientID" = $ConfObj.WebAppId; "SupercondActor.Platform.WebManager_AuthTenantID" = $tenantId}
+
+# Connect to the cluster using a client certificate.
+$clusterInfo = Connect-ServiceFabricCluster -ConnectionEndpoint $endpoint -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $thumbprint -FindType FindByThumbprint -FindValue $thumbprint -StoreLocation CurrentUser -StoreName My
+
+$managerAppName = "SupercondActor.Platform.WebManagerApp"
+$managerAppType = "SupercondActor.Platform.WebManagerAppType"
+$managerInstanceName = ("fabric:/" + $managerAppName)
+
+# Copy the application package to the cluster image store.
+Copy-ServiceFabricApplicationPackage $managerPackagePath -ApplicationPackagePathInImageStore $managerAppName -ShowProgress
+
+# Register the application type.
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore $managerAppName
+
+# Remove the application package to free system resources.
+Remove-ServiceFabricApplicationPackage -ApplicationPackagePathInImageStore $managerAppName
+
+# Create the application instance.
+New-ServiceFabricApplication -ApplicationName $managerInstanceName -ApplicationTypeName $managerAppType -ApplicationTypeVersion 1.0.0 -ApplicationParameter $appParams
+
+Write-Host "$(Get-Date -Format T) -Manager application package deployed." -ForegroundColor Green
+Write-Host "Deploying Service application package..." -ForegroundColor Yellow
+
+$serviceAppName = "SupercondActor.Platform.BusinessServicesApp"
+$serviceAppType = "SupercondActor.Platform.BusinessServicesAppType"
+$serviceInstanceName = ("fabric:/" + $serviceAppName + ".01")
+
+$appParams = @{"SupercondActor.Platform.SF.ApiService_AuthClientID" = $ConfObj.WebAppId; "SupercondActor.Platform.SF.ApiService_AuthTenantID" = $tenantId}
+
+# Copy the application package to the cluster image store.
+Copy-ServiceFabricApplicationPackage $servicePackagePath -ApplicationPackagePathInImageStore $serviceAppName -ShowProgress
+
+# Register the application type.
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore $serviceAppName
+
+# Remove the application package to free system resources.
+Remove-ServiceFabricApplicationPackage -ApplicationPackagePathInImageStore $serviceAppName
+
+# Create the application instance.
+New-ServiceFabricApplication -ApplicationName $serviceInstanceName -ApplicationTypeName $serviceAppType -ApplicationTypeVersion 1.0.0 -ApplicationParameter $appParams
+
+Write-Host "$(Get-Date -Format T) - All done!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Business Platform Manager URL:"
+Write-Host $platformManagerUrl -ForegroundColor Magenta
+Write-Host ""
+Write-Host ("Cluster Manager URL (open in Chrome and select certificate '$subname'):")
+Write-Host $clusterManagerUrl
+Write-Host ""
+
+Write-Host "Press Enter to exit"
+Read-Host

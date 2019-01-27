@@ -72,10 +72,8 @@ function EnsureKeyVault([string]$Name, [string]$ResourceGroupName, [string]$Loca
     $keyVault
 }
 
-function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [string]$certPassword, $KeyVaultName, [string]$folder)
+function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [string]$certPassword, $KeyVaultName, [string]$filePath)
 {   
-    $filePath = "$folder\$DnsName.pfx"
-
     $securePassword = ConvertTo-SecureString $certPassword -AsPlainText -Force
     $thumbprint = (New-SelfSignedCertificate -DnsName $DnsName -CertStoreLocation Cert:\CurrentUser\My -KeySpec KeyExchange).Thumbprint
     
