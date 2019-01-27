@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="SupercondActor.Platform.BusinessServicesAppType" ApplicationTypeVersion="1.0.0" xmlns="http://schemas.microsoft.com/2011/01/fabric" ManifestId="e0db9df3-0d1b-45b9-a2bd-511ca4d0cd94">
+  <Parameters>
+    <Parameter Name="SupercondActor.Platform.SF.ApiService_ASPNETCORE_ENVIRONMENT" DefaultValue="" />
+    <Parameter Name="SupercondActor.Platform.SF.ApiService_InstanceCount" DefaultValue="-1" />
+    <Parameter Name="SupercondActor.Platform.SF.LongRunningService_InstanceCount" DefaultValue="-1" />
+    <Parameter Name="SupercondActor.Platform.SF.ServiceManager_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="SupercondActor.Platform.SF.ServiceManager_PartitionCount" DefaultValue="1" />
+    <Parameter Name="SupercondActor.Platform.SF.ServiceManager_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="SupercondActor.Platform.SF.GCManager_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="SupercondActor.Platform.SF.GCManager_PartitionCount" DefaultValue="1" />
+    <Parameter Name="SupercondActor.Platform.SF.GCManager_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="ScheduledServiceActor_PartitionCount" DefaultValue="10" />
+    <Parameter Name="ScheduledServiceActor_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="ScheduledServiceActor_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="SupercondActor.Platform.SF.ApiService_AuthClientID" DefaultValue="" />
+    <Parameter Name="SupercondActor.Platform.SF.ApiService_AuthTenantID" DefaultValue="" />
+  </Parameters>
+  <!-- Import the ServiceManifest from the ServicePackage. The ServiceManifestName and ServiceManifestVersion 
+       should match the Name and Version attributes of the ServiceManifest element defined in the 
+       ServiceManifest.xml file. -->
+  <ServiceManifestImport>
+    <ServiceManifestRef ServiceManifestName="SupercondActor.Platform.SF.ApiServicePkg" ServiceManifestVersion="1.0.0" />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="PlatformConfigSection">
+            <Parameter Name="AuthClientID" Value="[SupercondActor.Platform.SF.ApiService_AuthClientID]" />
+            <Parameter Name="AuthTenantID" Value="[SupercondActor.Platform.SF.ApiService_AuthTenantID]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
+    <EnvironmentOverrides CodePackageRef="code">
+      <EnvironmentVariable Name="ASPNETCORE_ENVIRONMENT" Value="[SupercondActor.Platform.SF.ApiService_ASPNETCORE_ENVIRONMENT]" />
+    </EnvironmentOverrides>
+  </ServiceManifestImport>
+  <ServiceManifestImport>
+    <ServiceManifestRef ServiceManifestName="SupercondActor.Platform.SF.LongRunningServicePkg" ServiceManifestVersion="1.0.0" />
+    <ConfigOverrides />
+  </ServiceManifestImport>
+  <ServiceManifestImport>
+    <ServiceManifestRef ServiceManifestName="SupercondActor.Platform.SF.ServiceManagerPkg" ServiceManifestVersion="1.0.0" />
+    <ConfigOverrides />
+  </ServiceManifestImport>
+  <ServiceManifestImport>
+    <ServiceManifestRef ServiceManifestName="SupercondActor.Platform.SF.GCManagerPkg" ServiceManifestVersion="1.0.0" />
+    <ConfigOverrides />
+  </ServiceManifestImport>
+  <ServiceManifestImport>
+    <ServiceManifestRef ServiceManifestName="SupercondActor.Platform.SF.BusinessActorsPkg" ServiceManifestVersion="1.0.0" />
+  </ServiceManifestImport>
+  <DefaultServices>
+    <!--<Service Name="SupercondActor.Platform.SF.ApiService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatelessService ServiceTypeName="SupercondActor.Platform.SF.ApiServiceType" InstanceCount="[SupercondActor.Platform.SF.ApiService_InstanceCount]">
+        <SingletonPartition />
+      </StatelessService>
+    </Service>
+    <Service Name="SupercondActor.Platform.SF.LongRunningService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatelessService ServiceTypeName="SupercondActor.Platform.SF.LongRunningServiceType" InstanceCount="[SupercondActor.Platform.SF.LongRunningService_InstanceCount]">
+        <SingletonPartition />
+      </StatelessService>
+    </Service>-->
+    <Service Name="SupercondActor.Platform.SF.ServiceManager" ServicePackageActivationMode="ExclusiveProcess">
+      <StatefulService ServiceTypeName="SupercondActor.Platform.SF.ServiceManagerType" TargetReplicaSetSize="[SupercondActor.Platform.SF.ServiceManager_TargetReplicaSetSize]" MinReplicaSetSize="[SupercondActor.Platform.SF.ServiceManager_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[SupercondActor.Platform.SF.ServiceManager_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+    <Service Name="SupercondActor.Platform.SF.GCManager" ServicePackageActivationMode="ExclusiveProcess">
+      <StatefulService ServiceTypeName="SupercondActor.Platform.SF.GCManagerType" TargetReplicaSetSize="[SupercondActor.Platform.SF.GCManager_TargetReplicaSetSize]" MinReplicaSetSize="[SupercondActor.Platform.SF.GCManager_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[SupercondActor.Platform.SF.GCManager_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+    <Service Name="ScheduledServiceActor" GeneratedIdRef="72356901-d37b-48bb-b167-6469527f4676|Persisted">
+      <StatefulService ServiceTypeName="ScheduledServiceActorType" TargetReplicaSetSize="[ScheduledServiceActor_TargetReplicaSetSize]" MinReplicaSetSize="[ScheduledServiceActor_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[ScheduledServiceActor_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+  </DefaultServices>
+</ApplicationManifest>

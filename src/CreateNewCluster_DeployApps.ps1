@@ -17,7 +17,7 @@ $clusterName = ""
 $clusterLoc = "southcentralus"
 
 # Number of cluster nodes. Possible values: 1, 3-99
-$clusterSize = 5
+$clusterSize = 3
 
 # Type of VM to use in the cluster
 $vmSKU = "Standard_D2_v2"
@@ -92,6 +92,7 @@ $clusterManagerAppReplyUrl = ($clusterManagerUrl + "/*")
 ("Business Platform Manager URL: " + $platformManagerUrl) >> $outputFile
 
 ### Connect to AZURE
+Write-Host ("Enter your Azure admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
 $subscription = EnsureLoggedIn
 
 $isAvailable = Test-AzureRmDnsAvailability -DomainNameLabel $clusterName -Location $clusterLoc
@@ -111,10 +112,19 @@ else
 $currentAzureContext = Get-AzureRmContext
 $accountId = $currentAzureContext.Account.Id
 $app_role_name = "Admin"
-$tenantID = $subscription.TenantId[0]
+$tenantId = $subscription.TenantId[0].ToString()
 
-Write-Host ("Enter your Azure Graph admin credentials in the popup window...") -ForegroundColor Magenta
-$ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantID -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
+Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
+$ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
+
+### Add AD app reply URLs
+$webAppId = $ConfObj.WebAppId.ToString()
+
+$rpUrl = ("https://" + $subname + "/*")
+$azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId
+$azureAdApp.ReplyUrls.Add($rpUrl);
+$azureAdApp | Update-AzureRmADApplication -ReplyUrl $azureAdApp.ReplyUrls #| Out-Null
+
 
 # Get the user to assign, and the service principal for the app to assign to
 $user = Get-AzureADUser -ObjectId $accountId
@@ -131,11 +141,12 @@ $groupname = EnsureNewResourceGroup $clusterName $clusterLoc
 $keyVault = EnsureKeyVault $vaultname $groupname $clusterLoc
 
 $certFilePath = "$outputfolder\$subname.pfx"
-$thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $certFilePath
+$managerPackagePath = Join-Path $PSScriptRoot "ManagerAppPackage"
+$servicePackagePath = Join-Path $PSScriptRoot "ServiceAppPackage"
 
+$thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $certFilePath $managerPackagePath
 
-Write-Host ((Get-Date -Format T) + " - Building your cluster. It can take up to 10 minutes, please wait....") -ForegroundColor Yellow
-
+Write-Host "$(Get-Date -Format T) - Building your cluster. It can take up to 10 minutes, please wait...." -ForegroundColor Yellow
 
 $armParameters = @{
     namePart = $clusterName;
@@ -158,27 +169,14 @@ New-AzureRmResourceGroupDeployment `
   -TemplateParameterObject $armParameters `
   -Verbose
 
-### Split .pfx certificate file into .key and .crt files, put them into the Traefik service definition inside the Manager App package
-$managerPackagePath = Join-Path $PSScriptRoot "ManagerAppPackage"
-$servicePackagePath = Join-Path $PSScriptRoot "ServiceAppPackage"
-
-$keyFile = Join-Path $managerPackagePath "TraefikPkg\Code\certs\cluster.key"
-openssl pkcs12 -in $certFilePath -nocerts -nodes -out $keyFile -passin pass:$certPassword
-
-$crtFile = Join-Path $PSScriptRoot "ManagerAppPackage\TraefikPkg\Code\certs\cluster.crt"
-openssl pkcs12 -in $certFilePath -clcerts -nokeys -out $crtFile -passin pass:$certPassword
-
-# get certificate thumbprint
-$certPrint = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-$certPrint.Import($crtFile)   
-$thumbprint = $certPrint.Thumbprint
-
-Write-Host "$(Get-Date -Format T) - Application package updated with the cluster certificate." -ForegroundColor Green
+### Wait for the cluster to be ready
+Write-Host "$(Get-Date -Format T) - Waiting for the cluster to be ready ..." -ForegroundColor Yellow
+Start-Sleep -s 240
 
 ### Deploy application package
-Write-Host "Deploying Manager application package..." -ForegroundColor Yellow
+Write-Host "$(Get-Date -Format T) - Deploying Manager application package..." -ForegroundColor Yellow
 
-$appParams = @{"SupercondActor.Platform.WebManager_AuthClientID" = $ConfObj.WebAppId; "SupercondActor.Platform.WebManager_AuthTenantID" = $tenantId}
+$appParams = @{"SupercondActor.Platform.WebManager_AuthClientID" = $webAppId; "SupercondActor.Platform.WebManager_AuthTenantID" = $tenantId}
 
 # Connect to the cluster using a client certificate.
 $clusterInfo = Connect-ServiceFabricCluster -ConnectionEndpoint $endpoint -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $thumbprint -FindType FindByThumbprint -FindValue $thumbprint -StoreLocation CurrentUser -StoreName My
@@ -206,7 +204,7 @@ $serviceAppName = "SupercondActor.Platform.BusinessServicesApp"
 $serviceAppType = "SupercondActor.Platform.BusinessServicesAppType"
 $serviceInstanceName = ("fabric:/" + $serviceAppName + ".01")
 
-$appParams = @{"SupercondActor.Platform.SF.ApiService_AuthClientID" = $ConfObj.WebAppId; "SupercondActor.Platform.SF.ApiService_AuthTenantID" = $tenantId}
+$appParams = @{"SupercondActor.Platform.SF.ApiService_AuthClientID" = $webAppId; "SupercondActor.Platform.SF.ApiService_AuthTenantID" = $tenantId}
 
 # Copy the application package to the cluster image store.
 Copy-ServiceFabricApplicationPackage $servicePackagePath -ApplicationPackagePathInImageStore $serviceAppName -ShowProgress
@@ -222,10 +220,10 @@ New-ServiceFabricApplication -ApplicationName $serviceInstanceName -ApplicationT
 
 Write-Host "$(Get-Date -Format T) - All done!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Business Platform Manager URL:"
+Write-Host "SupercondActor Business Platform Manager URL:"
 Write-Host $platformManagerUrl -ForegroundColor Magenta
 Write-Host ""
-Write-Host ("Cluster Manager URL (open in Chrome and select certificate '$subname'):")
+Write-Host "Cluster Manager URL:"
 Write-Host $clusterManagerUrl
 Write-Host ""
 

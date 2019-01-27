@@ -3,7 +3,6 @@ $ErrorActionPreference = 'Stop'
 function EnsureLoggedIn()
 {
     ### Connect to AZURE
-    Write-Host ("Enter your Azure admin credentials in the popup window...") -ForegroundColor Magenta
     Connect-AzureRmAccount
     ConnectAzureAD
 
@@ -72,18 +71,28 @@ function EnsureKeyVault([string]$Name, [string]$ResourceGroupName, [string]$Loca
     $keyVault
 }
 
-function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [string]$certPassword, $KeyVaultName, [string]$filePath)
+function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [string]$certPassword, $KeyVaultName, [string]$certFilePath, [string]$managerPackagePath)
 {   
     $securePassword = ConvertTo-SecureString $certPassword -AsPlainText -Force
     $thumbprint = (New-SelfSignedCertificate -DnsName $DnsName -CertStoreLocation Cert:\CurrentUser\My -KeySpec KeyExchange).Thumbprint
     
     $certContent = (Get-ChildItem -Path cert:\CurrentUser\My\$thumbprint)
-    $t = Export-PfxCertificate -Cert $certContent -FilePath $filePath -Password $securePassword
-    Write-Host "$(Get-Date -Format T) - Exported certificate to $filePath"
+    $t = Export-PfxCertificate -Cert $certContent -FilePath $certFilePath -Password $securePassword
+    Write-Host "$(Get-Date -Format T) - Exported certificate to $certFilePath"
 
-    $kvCert = Import-AzureKeyVaultCertificate -VaultName $KeyVaultName -Name $certName -FilePath $filePath -Password $securePassword
+    $kvCert = Import-AzureKeyVaultCertificate -VaultName $KeyVaultName -Name $certName -FilePath $certFilePath -Password $securePassword
     Write-Host ("$(Get-Date -Format T) - Imported certificate to key vault: " + $kvCert.SecretId) -ForegroundColor Green
     
+    ### Split .pfx certificate file into .key and .crt files, put them into the Traefik service definition inside the Manager App package
+
+    $keyFile = Join-Path $managerPackagePath "TraefikPkg\Code\certs\cluster.key"
+    openssl pkcs12 -in $certFilePath -nocerts -nodes -out $keyFile -passin pass:$certPassword
+
+    $crtFile = Join-Path $managerPackagePath "TraefikPkg\Code\certs\cluster.crt"
+    openssl pkcs12 -in $certFilePath -clcerts -nokeys -out $crtFile -passin pass:$certPassword
+
+    Write-Host "$(Get-Date -Format T) - Application package updated with the cluster certificate." -ForegroundColor Green
+
     $thumbprint
     $kvCert.SecretId
 }
