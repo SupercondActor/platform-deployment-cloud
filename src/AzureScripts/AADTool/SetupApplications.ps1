@@ -184,7 +184,7 @@ switch ($Location)
 $webApp = CallGraphAPI $uri $headers $webApp
 AssertNotNull $webApp 'Web Application Creation Failed'
 $ConfigObj.WebAppId = $webApp.appId
-Write-Host 'Web Application Created:' $webApp.appId
+Write-Host 'AD Web Application Created'
 
 #Service Principal
 $uri = [string]::Format($graphAPIFormat, "servicePrincipals")
@@ -216,7 +216,7 @@ $nativeApp = @{
 }
 $nativeApp = CallGraphAPI $uri $headers $nativeApp
 AssertNotNull $nativeApp 'Native Client Application Creation Failed'
-Write-Host 'Native Client Application Created:' $nativeApp.appId
+Write-Host 'AD Native Client Application Created'
 $ConfigObj.NativeClientAppId = $nativeApp.appId
 
 #Service Principal

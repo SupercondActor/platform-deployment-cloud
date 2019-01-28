@@ -22,17 +22,12 @@ $clusterSize = 3
 # Type of VM to use in the cluster
 $vmSKU = "Standard_D2_v2"
 
-# Active Directory App Registration Name - for authenticatioin
-#  (if not provided will be generated from cluster name):
-$azureAdAppName = "SupercondActor-auth"
-
 # Certificate password
 #  (if not provided will be generated and written to the ClusterInfo file):
 $certPassword = ""
 
-# User name and password for VM admin
+# Password for VM RDP user
 #  (if not provided will be generated and written to the ClusterInfo file):
-$vmAdminUser = "adminuser"
 $vmAdminPassword = ""
 
 # End of the parameters section ========================================================
@@ -41,6 +36,7 @@ $vmAdminPassword = ""
 try
 {
     $opensslVersion = openssl version
+    Write-Host "Found OpenSSL version $opensslVersion"
 }
 catch
 {
@@ -58,7 +54,6 @@ if([string]::IsNullOrEmpty($clusterName))
 Write-Host ("Cluster name: " + $clusterName)
 
 # current folder
-$path = $PSScriptRoot
 
 # Folder where to save generated certificate and info:
 $outputfolder = Join-Path (Join-Path $PSScriptRoot "cluster") $clusterName
@@ -146,7 +141,8 @@ $servicePackagePath = Join-Path $PSScriptRoot "ServiceAppPackage"
 
 $thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $certFilePath $managerPackagePath
 
-Write-Host "$(Get-Date -Format T) - Building your cluster. It can take up to 10 minutes, please wait...." -ForegroundColor Yellow
+Write-Host "$(Get-Date -Format T) - Building your cluster. It can take up to 15 minutes, please wait...." -ForegroundColor Yellow
+Write-Host ""
 
 $armParameters = @{
     namePart = $clusterName;
@@ -157,6 +153,7 @@ $armParameters = @{
     durabilityLevel = "Bronze";
     reliabilityLevel = "Bronze";
     vmInstanceCount = $clusterSize;
+    vmNodeSize = $vmSKU;
     aadTenantId = $tenantId;
     aadClusterApplicationId = $ConfObj.WebAppId;
     aadClientApplicationId = $ConfObj.NativeClientAppId;
@@ -166,8 +163,7 @@ New-AzureRmResourceGroupDeployment `
   -ResourceGroupName $groupname `
   -TemplateFile "$PSScriptRoot\cluster.template.json" `
   -Mode Incremental `
-  -TemplateParameterObject $armParameters `
-  -Verbose
+  -TemplateParameterObject $armParameters >> $outputFile
 
 ### Wait for the cluster to be ready
 Write-Host "$(Get-Date -Format T) - Waiting for the cluster to be ready ..." -ForegroundColor Yellow

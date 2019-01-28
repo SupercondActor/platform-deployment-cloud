@@ -10,11 +10,11 @@ function EnsureLoggedIn()
     if($allSubs.Count -eq 1)
     {
         $sub = $allSubs[0]
-        Write-Host ("$(Get-Date -Format T) - Exists subscriptioin: '" + $sub.Name + "'") -ForegroundColor Green
+        Write-Host ("$(Get-Date -Format T) - Exists subscription: '" + $sub.Name + "'") -ForegroundColor Green
     }
     else
     {
-        Write-Host ("Found " + $allSubs.Count + " available Azure subscriptions.") -ForegroundColor Yellow
+        Write-Host ("Found " + $allSubs.Count + " available Azure subscriptions:") -ForegroundColor Yellow
         for($i=0; $i -lt $allSubs.Count; $i++)
         {
             Write-Host ($i.ToString() + " - " + $allSubs[$i].Name)
@@ -24,7 +24,7 @@ function EnsureLoggedIn()
         $sub = $allSubs[$nbr]
         if($sub)
         {
-            Write-Host ("$(Get-Date -Format T) - Selected subscriptioin: '" + $sub.Name + "'") -ForegroundColor Green
+            Write-Host ("$(Get-Date -Format T) - Selected subscription: '" + $sub.Name + "'") -ForegroundColor Green
             Select-AzureRmSubscription -SubscriptionId $sub.Id
         }
         else
