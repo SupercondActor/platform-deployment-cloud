@@ -219,39 +219,52 @@ AssertNotNull $nativeApp 'Native Client Application Creation Failed'
 Write-Host 'AD Native Client Application Created'
 $ConfigObj.NativeClientAppId = $nativeApp.appId
 
-#Service Principal
-$uri = [string]::Format($graphAPIFormat, "servicePrincipals")
-$servicePrincipal = @{
-    accountEnabled = "true"
-    appId = $nativeApp.appId
-    displayName = $nativeApp.displayName
-}
-$servicePrincipal = CallGraphAPI $uri $headers $servicePrincipal
+try
+{
+    #Service Principal
+    $uri = [string]::Format($graphAPIFormat, "servicePrincipals")
+    $servicePrincipal = @{
+        accountEnabled = "true"
+        appId = $nativeApp.appId
+        displayName = $nativeApp.displayName
+    }
+    $servicePrincipal = CallGraphAPI $uri $headers $servicePrincipal
 
-#OAuth2PermissionGrant
+    #OAuth2PermissionGrant
 
-#AAD service principal
-$uri = [string]::Format($graphAPIFormat, "servicePrincipals") + '&$filter=appId eq ''00000002-0000-0000-c000-000000000000'''
-$AADServicePrincipalId = (Invoke-RestMethod $uri -Headers $headers).value.objectId
+    #AAD service principal
+    $uri = [string]::Format($graphAPIFormat, "servicePrincipals") + '&$filter=appId eq ''00000002-0000-0000-c000-000000000000'''
+    $AADServicePrincipalId = (Invoke-RestMethod $uri -Headers $headers).value.objectId
 
-$uri = [string]::Format($graphAPIFormat, "oauth2PermissionGrants")
-$oauth2PermissionGrants = @{
-    clientId = $servicePrincipal.objectId
-    consentType = "AllPrincipals"
-    resourceId = $AADServicePrincipalId
-    scope = "User.Read"
-    startTime = (Get-Date).ToUniversalTime().ToString("s")
-    expiryTime = (Get-Date).AddYears(1800).ToUniversalTime().ToString("s")
+    $uri = [string]::Format($graphAPIFormat, "oauth2PermissionGrants")
+    $oauth2PermissionGrants = @{
+        clientId = $servicePrincipal.objectId
+        consentType = "AllPrincipals"
+        resourceId = $AADServicePrincipalId
+        scope = "User.Read"
+        startTime = (Get-Date).ToUniversalTime().ToString("s")
+        expiryTime = (Get-Date).AddYears(1800).ToUniversalTime().ToString("s")
+    }
+    CallGraphAPI $uri $headers $oauth2PermissionGrants | Out-Null
+    $oauth2PermissionGrants = @{
+        clientId = $servicePrincipal.objectId
+        consentType = "AllPrincipals"
+        resourceId = $ConfigObj.ServicePrincipalId
+        scope = "user_impersonation"
+        startTime = (Get-Date).ToUniversalTime().ToString("s")
+        expiryTime = (Get-Date).AddYears(1800).ToUniversalTime().ToString("s")
+    }
+    CallGraphAPI $uri $headers $oauth2PermissionGrants | Out-Null
+    $ConfigObj.AppPermissionsError = $false
 }
-CallGraphAPI $uri $headers $oauth2PermissionGrants | Out-Null
-$oauth2PermissionGrants = @{
-    clientId = $servicePrincipal.objectId
-    consentType = "AllPrincipals"
-    resourceId = $ConfigObj.ServicePrincipalId
-    scope = "user_impersonation"
-    startTime = (Get-Date).ToUniversalTime().ToString("s")
-    expiryTime = (Get-Date).AddYears(1800).ToUniversalTime().ToString("s")
+catch
+{
+    $ConfigObj.AppPermissionsError = $true
+    Write-Host ""
+    Write-Host $error[0].ErrorDetails -ForegroundColor Red
+    Write-Host "!!! Can't update application permissions" -ForegroundColor Yellow
+    Write-Host "!!! Please set permissions manually for the application '$WebApplicationName'." -ForegroundColor Yellow
+    Write-Host ""
 }
-CallGraphAPI $uri $headers $oauth2PermissionGrants | Out-Null
 
 $ConfigObj

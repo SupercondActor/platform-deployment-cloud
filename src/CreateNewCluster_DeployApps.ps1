@@ -110,6 +110,7 @@ $app_role_name = "Admin"
 $tenantId = $subscription.TenantId[0].ToString()
 
 Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
+
 $ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
 
 ### Add AD app reply URLs
@@ -158,6 +159,8 @@ $armParameters = @{
     aadClusterApplicationId = $ConfObj.WebAppId;
     aadClientApplicationId = $ConfObj.NativeClientAppId;
   }
+
+# Write-Host $armParameters
 
 New-AzureRmResourceGroupDeployment `
   -ResourceGroupName $groupname `
