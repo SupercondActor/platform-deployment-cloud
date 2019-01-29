@@ -9,6 +9,9 @@
 
 #!!! PARAMETERS: ======================================================================
 
+# Set to $true if you are have admin rights for this subscription's Microsoft Graph management
+$IHaveGraphAdminPerms = $false
+
 # Cluster Name - must be globally unique in the region
 #  (if not provided will be generated random):
 $clusterName = ""
@@ -21,6 +24,9 @@ $clusterSize = 3
 
 # Type of VM to use in the cluster
 $vmSKU = "Standard_D2_v2"
+
+# Operations Management SKU. Can be "Free", "PerGB2018", "Standalone", "PerNode"
+$omsSku = "Free"
 
 # Certificate password
 #  (if not provided will be generated and written to the ClusterInfo file):
@@ -52,8 +58,6 @@ if([string]::IsNullOrEmpty($clusterName))
     $clusterName = ("sabp" + $rndCl)
 }
 Write-Host ("Cluster name: " + $clusterName)
-
-# current folder
 
 # Folder where to save generated certificate and info:
 $outputfolder = Join-Path (Join-Path $PSScriptRoot "cluster") $clusterName
@@ -109,26 +113,50 @@ $accountId = $currentAzureContext.Account.Id
 $app_role_name = "Admin"
 $tenantId = $subscription.TenantId[0].ToString()
 
-Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
+if ($IHaveGraphAdminPerms) {
+    Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
 
-$ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
-
-### Add AD app reply URLs
-$webAppId = $ConfObj.WebAppId.ToString()
+    $ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
+}
 
 $rpUrl = ("https://" + $subname + "/*")
-$azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId
-$azureAdApp.ReplyUrls.Add($rpUrl);
-$azureAdApp | Update-AzureRmADApplication -ReplyUrl $azureAdApp.ReplyUrls #| Out-Null
 
+if (-not ($IHaveGraphAdminPerms) -or $ConfObj.AppPermissionsError) {
+    $setADAuth = "AD"
+    ### Create Azure AD Application Registration for authentication
+    $homeUri = ("https://" + $subname) 
+    $azureAdAppName = ("SupercondActor-auth-" + $clusterName)   
+    $appUri = ("https://" + $azureAdAppName)
+    Write-Host "$(Get-Date -Format T) - Creating Azure AD Application Registration '$azureAdAppName' ..."
 
-# Get the user to assign, and the service principal for the app to assign to
-$user = Get-AzureADUser -ObjectId $accountId
-$spId = $ConfObj.ServicePrincipalId
-$appRole = $ConfObj.AppRoles | Where-Object { $_.DisplayName -eq $app_role_name }
+    $azureAdApp = New-AzureRmADApplication -DisplayName $azureAdAppName -HomePage $homeUri -IdentifierUris $appUri -ReplyUrls $rpUrl
+    $webAppId = $azureAdApp.ApplicationId.ToString()
 
-# Assign the user to the app role
-New-AzureADUserAppRoleAssignment -ObjectId $user.ObjectId -PrincipalId $user.ObjectId -ResourceId $spId -Id $appRole.Id
+    $clusterWebAppId = "";
+    $clusterNativeClientAppId = "";
+}
+if ($IHaveGraphAdminPerms -and (-not ($ConfObj.AppPermissionsError))) {
+    $setADAuth = "Graph"
+    $azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId  
+    ### Add AD app reply URLs
+    $webAppId = $ConfObj.WebAppId.ToString()
+    $azureAdApp.ReplyUrls.Add($rpUrl);
+    $azureAdApp | Update-AzureRmADApplication -ReplyUrl $azureAdApp.ReplyUrls #| Out-Null
+
+    # Get the user to assign, and the service principal for the app to assign to
+    $user = Get-AzureADUser -ObjectId $accountId
+    $spId = $ConfObj.ServicePrincipalId
+    $appRole = $ConfObj.AppRoles | Where-Object { $_.DisplayName -eq $app_role_name }
+
+    # Assign the user to the app role
+    New-AzureADUserAppRoleAssignment -ObjectId $user.ObjectId -PrincipalId $user.ObjectId -ResourceId $spId -Id $appRole.Id  | Out-Null
+
+    $clusterWebAppId = $ConfObj.WebAppId;
+    $clusterNativeClientAppId = $ConfObj.NativeClientAppId;
+}
+
+Write-Host "$(Get-Date -Format T) - Application authentication configured." -ForegroundColor Green
+Write-Host ""
 
 ### Create resource group
 $groupname = EnsureNewResourceGroup $clusterName $clusterLoc
@@ -143,7 +171,6 @@ $servicePackagePath = Join-Path $PSScriptRoot "ServiceAppPackage"
 $thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPassword $vaultname $certFilePath $managerPackagePath
 
 Write-Host "$(Get-Date -Format T) - Building your cluster. It can take up to 15 minutes, please wait...." -ForegroundColor Yellow
-Write-Host ""
 
 $armParameters = @{
     namePart = $clusterName;
@@ -153,11 +180,13 @@ $armParameters = @{
     certificateUrlValue = $certUrl;
     durabilityLevel = "Bronze";
     reliabilityLevel = "Bronze";
+    setADAuth = $setADAuth;
     vmInstanceCount = $clusterSize;
     vmNodeSize = $vmSKU;
     aadTenantId = $tenantId;
-    aadClusterApplicationId = $ConfObj.WebAppId;
-    aadClientApplicationId = $ConfObj.NativeClientAppId;
+    aadClusterApplicationId = $clusterWebAppId # $ConfObj.WebAppId;
+    aadClientApplicationId = $clusterNativeClientAppId # $ConfObj.NativeClientAppId;
+    omsSku = $omsSku;
   }
 
 # Write-Host $armParameters
@@ -171,6 +200,7 @@ New-AzureRmResourceGroupDeployment `
 ### Wait for the cluster to be ready
 Write-Host "$(Get-Date -Format T) - Waiting for the cluster to be ready ..." -ForegroundColor Yellow
 Start-Sleep -s 240
+Write-Host "$(Get-Date -Format T) - Cluster created." -ForegroundColor Green
 
 ### Deploy application package
 Write-Host "$(Get-Date -Format T) - Deploying Manager application package..." -ForegroundColor Yellow

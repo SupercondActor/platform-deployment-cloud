@@ -19,7 +19,7 @@ function EnsureLoggedIn()
         {
             Write-Host ($i.ToString() + " - " + $allSubs[$i].Name)
         }
-        Write-Host ("Enter a number to select the one you need (Ctrl+C to exit):") -ForegroundColor Yellow
+        Write-Host ("Enter a number to select the one you need (Ctrl+C to exit):") -ForegroundColor Magenta
         $nbr = Read-Host
         $sub = $allSubs[$nbr]
         if($sub)

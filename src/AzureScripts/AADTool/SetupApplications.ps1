@@ -262,9 +262,8 @@ catch
     $ConfigObj.AppPermissionsError = $true
     Write-Host ""
     Write-Host $error[0].ErrorDetails -ForegroundColor Red
-    Write-Host "!!! Can't update application permissions" -ForegroundColor Yellow
-    Write-Host "!!! Please set permissions manually for the application '$WebApplicationName'." -ForegroundColor Yellow
-    Write-Host ""
+    Write-Host "!!! Can't set Graph OAuth permissions for the application '$WebApplicationName'" -ForegroundColor Yellow
+    Write-Host "!!! Ask your admin to grant app permissions manually." -ForegroundColor Yellow
 }
 
 $ConfigObj

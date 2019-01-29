@@ -51,6 +51,10 @@
     "aadTenantId": {
       "type": "string"
     },
+    "setADAuth": {
+      "type": "string",
+      "defaultValue": "Yes"
+    },
     "aadClusterApplicationId": {
       "type": "string"
     },
@@ -85,6 +89,7 @@
     "omsSku": {
       "type": "string",
       "allowedValues": [
+        "Free",
         "Standalone",
         "PerNode",
         "PerGB2018"
@@ -368,7 +373,7 @@
                   },
                   "publisher": "Microsoft.Azure.ServiceFabric",
                   "settings": {
-                    "clusterEndpoint": "[reference(variables('clusterName')).clusterEndpoint]",
+                    "clusterEndpoint": "[reference(concat(variables('clusterName'),parameters('setADAuth'))).clusterEndpoint]",
                     "nodeTypeRef": "[variables('vmNodeType0Name')]",
                     "enableParallelJobs": true,
                     "dataPath": "D:\\\\SvcFab",
@@ -523,8 +528,9 @@
     {
       "apiVersion": "2017-07-01-preview",
       "type": "Microsoft.ServiceFabric/clusters",
-      "name": "[variables('clusterName')]",
+      "name": "[concat(variables('clusterName'),'Graph')]",
       "location": "[resourceGroup().location]",
+      "condition": "[equals(parameters('setADAuth'), 'Graph')]",
       "dependsOn": [
         "[variables('supportLogStorageAccountName')]"
       ],
@@ -583,6 +589,67 @@
           "clusterApplication": "[parameters('aadClusterApplicationId')]",
           "clientApplication": "[parameters('aadClientApplicationId')]"
         }
+      }
+    },
+    {
+      "apiVersion": "2017-07-01-preview",
+      "type": "Microsoft.ServiceFabric/clusters",
+      "name": "[concat(variables('clusterName'),'AD')]",
+      "location": "[resourceGroup().location]",
+      "condition": "[equals(parameters('setADAuth'), 'AD')]",
+      "dependsOn": [
+        "[variables('supportLogStorageAccountName')]"
+      ],
+      "properties": {
+        "certificate": {
+          "thumbprint": "[parameters('certificateThumbprint')]",
+          "x509StoreName": "[variables('certificateStoreValue')]"
+        },
+        "clientCertificateCommonNames": [],
+        "clientCertificateThumbprints": [],
+        "diagnosticsStorageAccountConfig": {
+          "blobEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.blob]",
+          "protectedAccountKeyName": "StorageAccountKey1",
+          "queueEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.queue]",
+          "storageAccountName": "[variables('supportLogStorageAccountName')]",
+          "tableEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.table]"
+        },
+        "fabricSettings": [
+          {
+            "parameters": [
+              {
+                "name": "ClusterProtectionLevel",
+                "value": "EncryptAndSign"
+              }
+            ],
+            "name": "Security"
+          }
+        ],
+        "addonFeatures": [
+          "DnsService"
+        ],
+        "managementEndpoint": "[concat('https://', reference(variables('lbIPName')).dnsSettings.fqdn, ':', variables('fabricHttpGatewayPort'))]",
+        "nodeTypes": [
+          {
+            "name": "[variables('vmNodeType0Name')]",
+            "applicationPorts": {
+              "endPort": "[variables('applicationEndPort')]",
+              "startPort": "[variables('applicationStartPort')]"
+            },
+            "clientConnectionEndpointPort": "[variables('fabricTcpGatewayPort')]",
+            "durabilityLevel": "[parameters('durabilityLevel')]",
+            "ephemeralPorts": {
+              "endPort": "[variables('ephemeralEndPort')]",
+              "startPort": "[variables('ephemeralStartPort')]"
+            },
+            "httpGatewayEndpointPort": "[variables('fabricHttpGatewayPort')]",
+            "isPrimary": true,
+            "vmInstanceCount": "[parameters('vmInstanceCount')]"
+          }
+        ],
+        "reliabilityLevel": "[parameters('reliabilityLevel')]",
+        "upgradeMode": "Automatic",
+        "vmImage": "Windows"
       }
     },
     {
@@ -662,9 +729,5 @@
     }
   ],
   "outputs": {
-    "clusterProperties": {
-      "value": "[reference(variables('clusterName'))]",
-      "type": "object"
-    }
   }
 }
