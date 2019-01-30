@@ -4,6 +4,7 @@ function EnsureLoggedIn()
 {
     ### Connect to AZURE
     Connect-AzureRmAccount
+    Write-Host "$(Get-Date -Format T) - Verifying your Azure subscription ..."
     ConnectAzureAD
 
     $allSubs = Get-AzureRmSubscription
@@ -91,7 +92,7 @@ function EnsureSelfSignedCertificate([string]$certName, [string]$DnsName, [strin
     $crtFile = Join-Path $managerPackagePath "TraefikPkg\Code\certs\cluster.crt"
     openssl pkcs12 -in $certFilePath -clcerts -nokeys -out $crtFile -passin pass:$certPassword
 
-    Write-Host "$(Get-Date -Format T) - Application package updated with the cluster certificate." -ForegroundColor Green
+    Write-Host "$(Get-Date -Format T) - SupercondActor application package updated with the cluster certificate." -ForegroundColor Green
 
     $thumbprint
     $kvCert.SecretId

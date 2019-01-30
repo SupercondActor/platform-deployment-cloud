@@ -9,9 +9,6 @@
 
 #!!! PARAMETERS: ======================================================================
 
-# Set to $true if you are have admin rights for this subscription's Microsoft Graph management
-$IHaveGraphAdminPerms = $false
-
 # Cluster Name - must be globally unique in the region
 #  (if not provided will be generated random):
 $clusterName = ""
@@ -26,7 +23,7 @@ $clusterSize = 3
 $vmSKU = "Standard_D2_v2"
 
 # Operations Management SKU. Can be "Free", "PerGB2018", "Standalone", "PerNode"
-$omsSku = "Free"
+$omsSku = "PerGB2018"
 
 # Certificate password
 #  (if not provided will be generated and written to the ClusterInfo file):
@@ -39,21 +36,18 @@ $vmAdminPassword = ""
 # End of the parameters section ========================================================
 
 ### Prerequisites verification
-try
-{
+try {
     $opensslVersion = openssl version
     Write-Host "Found OpenSSL version $opensslVersion"
 }
-catch
-{
+catch {
     Write-Host "OpenSSL not found. Please make sure you have OpenSSL installed on your system." -ForegroundColor Red
     Write-Host "Press Enter to exit"
     Read-Host
     exit
 }
 
-if([string]::IsNullOrEmpty($clusterName))
-{
+if ([string]::IsNullOrEmpty($clusterName)) {
     $rndCl = -join ((48..57) + (97..122) | Get-Random -Count 10 | % {[char]$_})
     $clusterName = ("sabp" + $rndCl)
 }
@@ -66,14 +60,12 @@ New-Item -Path $outputfolder -ItemType Directory -Force | Out-Null
 # Where to write info for the new cluster 
 $outputFile = Join-Path $outputfolder ("ClusterInfo_" + ($clusterName + ".txt"))
 
-if([string]::IsNullOrEmpty($certPassword))
-{
+if ([string]::IsNullOrEmpty($certPassword)) {
     $certPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 15 | % {[char]$_})
     ("Certificate password: " + $certPassword) >> $outputFile
 }
 
-if([string]::IsNullOrEmpty($vmAdminPassword))
-{
+if ([string]::IsNullOrEmpty($vmAdminPassword)) {
     $vmAdminPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 15 | % {[char]$_})
     ("VMs password: " + $vmAdminPassword) >> $outputFile
 }
@@ -95,17 +87,31 @@ Write-Host ("Enter your Azure admin credentials in the pop-up window (it might b
 $subscription = EnsureLoggedIn
 
 $isAvailable = Test-AzureRmDnsAvailability -DomainNameLabel $clusterName -Location $clusterLoc
-if($isAvailable)
-{
-    Write-Host ("The cluster name '" + $clusterName + "' is available in the location '" + $clusterLoc + "'.") -ForegroundColor Green
+if ($isAvailable) {
+    Write-Host ("The cluster name '" + $clusterName + "' is available in the location '" + $clusterLoc + "'.")
 }
-else
-{
+else {
     Write-Host ("The cluster name '" + $clusterName + "' is not available in the location '" + $clusterLoc + "'. Please try another name.") -ForegroundColor Yellow
     Write-Host "Press Enter to exit"
     Read-Host
     exit
 }
+
+$HavePerms = ""
+Write-Host "> You must have MS Graph Admin rights in this subscription
+>   to set up OAuth user authentication for Cluster Manager and SupercondActor Manager applications.
+>   Otherwise a simplified AD authentication will be set up for SupercondActor Manager only." -ForegroundColor Yellow
+while (($HavePerms -ne "y") -and ($HavePerms -ne "n")) {
+    Write-Host 'Do you have MS Graph admin rights in this Azure subscription?' -ForegroundColor Magenta -NoNewline
+    $HavePerms = Read-Host -Prompt ' (y/n)'
+}
+if ($HavePerms -eq "y") {
+    $setADAuth = "Graph"
+}
+else {
+    $setADAuth = "AD"
+}
+Write-Host ""
 
 ### AAD
 $currentAzureContext = Get-AzureRmContext
@@ -113,7 +119,7 @@ $accountId = $currentAzureContext.Account.Id
 $app_role_name = "Admin"
 $tenantId = $subscription.TenantId[0].ToString()
 
-if ($IHaveGraphAdminPerms) {
+if ($setADAuth -eq "Graph") {
     Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
 
     $ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
@@ -121,8 +127,7 @@ if ($IHaveGraphAdminPerms) {
 
 $rpUrl = ("https://" + $subname + "/*")
 
-if (-not ($IHaveGraphAdminPerms) -or $ConfObj.AppPermissionsError) {
-    $setADAuth = "AD"
+if (($setADAuth -eq "AD") -or $ConfObj.AppPermissionsError) {
     ### Create Azure AD Application Registration for authentication
     $homeUri = ("https://" + $subname) 
     $azureAdAppName = ("SupercondActor-auth-" + $clusterName)   
@@ -135,11 +140,10 @@ if (-not ($IHaveGraphAdminPerms) -or $ConfObj.AppPermissionsError) {
     $clusterWebAppId = "";
     $clusterNativeClientAppId = "";
 }
-if ($IHaveGraphAdminPerms -and (-not ($ConfObj.AppPermissionsError))) {
-    $setADAuth = "Graph"
-    $azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId  
-    ### Add AD app reply URLs
+if (($setADAuth -eq "Graph") -and (-not ($ConfObj.AppPermissionsError))) {
     $webAppId = $ConfObj.WebAppId.ToString()
+    ### Add AD app reply URLs
+    $azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId  
     $azureAdApp.ReplyUrls.Add($rpUrl);
     $azureAdApp | Update-AzureRmADApplication -ReplyUrl $azureAdApp.ReplyUrls #| Out-Null
 
@@ -155,8 +159,8 @@ if ($IHaveGraphAdminPerms -and (-not ($ConfObj.AppPermissionsError))) {
     $clusterNativeClientAppId = $ConfObj.NativeClientAppId;
 }
 
-Write-Host "$(Get-Date -Format T) - Application authentication configured." -ForegroundColor Green
-Write-Host ""
+Write-Host "$(Get-Date -Format T) - Application authentication configured." -ForegroundColor Green -NoNewline
+Write-Host " Creating resource group ..."
 
 ### Create resource group
 $groupname = EnsureNewResourceGroup $clusterName $clusterLoc
@@ -173,29 +177,29 @@ $thumbprint, $certUrl = EnsureSelfSignedCertificate $certName $subname $certPass
 Write-Host "$(Get-Date -Format T) - Building your cluster. It can take up to 15 minutes, please wait...." -ForegroundColor Yellow
 
 $armParameters = @{
-    namePart = $clusterName;
-    rdpPassword = $vmAdminPassword;
-    certificateThumbprint = $thumbprint;
-    sourceVaultResourceId = $keyVault.ResourceId;
-    certificateUrlValue = $certUrl;
-    durabilityLevel = "Bronze";
-    reliabilityLevel = "Bronze";
-    setADAuth = $setADAuth;
-    vmInstanceCount = $clusterSize;
-    vmNodeSize = $vmSKU;
-    aadTenantId = $tenantId;
+    namePart                = $clusterName;
+    rdpPassword             = $vmAdminPassword;
+    certificateThumbprint   = $thumbprint;
+    sourceVaultResourceId   = $keyVault.ResourceId;
+    certificateUrlValue     = $certUrl;
+    durabilityLevel         = "Bronze";
+    reliabilityLevel        = "Bronze";
+    setADAuth               = $setADAuth;
+    vmInstanceCount         = $clusterSize;
+    vmNodeSize              = $vmSKU;
+    aadTenantId             = $tenantId;
     aadClusterApplicationId = $clusterWebAppId # $ConfObj.WebAppId;
-    aadClientApplicationId = $clusterNativeClientAppId # $ConfObj.NativeClientAppId;
-    omsSku = $omsSku;
-  }
+    aadClientApplicationId  = $clusterNativeClientAppId # $ConfObj.NativeClientAppId;
+    omsSku                  = $omsSku;
+}
 
 # Write-Host $armParameters
 
 New-AzureRmResourceGroupDeployment `
-  -ResourceGroupName $groupname `
-  -TemplateFile "$PSScriptRoot\cluster.template.json" `
-  -Mode Incremental `
-  -TemplateParameterObject $armParameters >> $outputFile
+    -ResourceGroupName $groupname `
+    -TemplateFile "$PSScriptRoot\cluster.template.json" `
+    -Mode Incremental `
+    -TemplateParameterObject $armParameters >> $outputFile
 
 ### Wait for the cluster to be ready
 Write-Host "$(Get-Date -Format T) - Waiting for the cluster to be ready ..." -ForegroundColor Yellow
