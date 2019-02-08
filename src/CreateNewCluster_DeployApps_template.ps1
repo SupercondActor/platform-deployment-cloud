@@ -5,6 +5,9 @@
 ### If you see Access Policy exception during cluster creation - clear your PowerShell context:
 # Clear-AzureRmContext -Scope CurrentUser
 
+#======================================================================================
+
+# including common scripts
 . "$PSScriptRoot\AzureScripts\Common.ps1"
 
 #!!! PARAMETERS: ======================================================================
