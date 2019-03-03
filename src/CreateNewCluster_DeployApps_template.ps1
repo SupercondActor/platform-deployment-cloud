@@ -210,7 +210,7 @@ Start-Sleep -s 240
 Write-Host "$(Get-Date -Format T) - Cluster created." -ForegroundColor Green
 
 ### Deploy application package
-Write-Host "$(Get-Date -Format T) - Deploying Manager application package..." -ForegroundColor Yellow
+Write-Host "$(Get-Date -Format T) - Deploying Manager application package ..." -ForegroundColor Yellow
 
 $appParams = @{"SupercondActor.Platform.WebManager_AuthClientID" = $webAppId; "SupercondActor.Platform.WebManager_AuthTenantID" = $tenantId}
 
@@ -233,8 +233,8 @@ Remove-ServiceFabricApplicationPackage -ApplicationPackagePathInImageStore $mana
 # Create the application instance.
 New-ServiceFabricApplication -ApplicationName $managerInstanceName -ApplicationTypeName $managerAppType -ApplicationTypeVersion 1.0.0 -ApplicationParameter $appParams
 
-Write-Host "$(Get-Date -Format T) -Manager application package deployed." -ForegroundColor Green
-Write-Host "Deploying Service application package..." -ForegroundColor Yellow
+Write-Host "$(Get-Date -Format T) - Manager application package deployed." -ForegroundColor Green
+Write-Host "Deploying Service application package ..." -ForegroundColor Yellow
 
 $serviceAppName = "SupercondActor.Platform.BusinessServicesApp"
 $serviceAppType = "SupercondActor.Platform.BusinessServicesAppType"

@@ -6,7 +6,7 @@
   "compilationOptions": {
     "defines": [
       "TRACE",
-      "DEBUG",
+      "RELEASE",
       "NETFRAMEWORK",
       "NET461"
     ],
@@ -14,7 +14,7 @@
     "platform": "x64",
     "allowUnsafe": false,
     "warningsAsErrors": false,
-    "optimize": false,
+    "optimize": true,
     "keyFile": "",
     "emitEntryPoint": true,
     "xmlDoc": false,
@@ -3493,9 +3493,9 @@
           "SupercondActor.Platform.Base.Types": "1.0.0",
           "SupercondActor.Platform.Common": "1.0.0",
           "SupercondActor.Platform.SF.ActorsBase": "1.0.0",
-          "Microsoft.WindowsAzure.Storage": "9.3.2.0",
           "Microsoft.ServiceFabric.Actors": "6.0.0.0",
           "Microsoft.ServiceFabric.Services.Remoting": "6.0.0.0",
+          "Microsoft.WindowsAzure.Storage": "9.3.2.0",
           "Microsoft.ServiceFabric.FabricTransport.V2": "6.0.0.0",
           "Microsoft.ServiceFabric.FabricTransport": "6.0.0.0"
         },
@@ -3536,11 +3536,6 @@
           "SupercondActor.Platform.SF.ActorsBase.dll": {}
         }
       },
-      "Microsoft.WindowsAzure.Storage.Reference/9.3.2.0": {
-        "runtime": {
-          "Microsoft.WindowsAzure.Storage.dll": {}
-        }
-      },
       "Microsoft.ServiceFabric.Actors.Reference/6.0.0.0": {
         "runtime": {
           "Microsoft.ServiceFabric.Actors.dll": {}
@@ -3549,6 +3544,11 @@
       "Microsoft.ServiceFabric.Services.Remoting.Reference/6.0.0.0": {
         "runtime": {
           "Microsoft.ServiceFabric.Services.Remoting.dll": {}
+        }
+      },
+      "Microsoft.WindowsAzure.Storage.Reference/9.3.2.0": {
+        "runtime": {
+          "Microsoft.WindowsAzure.Storage.dll": {}
         }
       },
       "Microsoft.Azure.KeyVault.Reference/3.0.0.0": {
@@ -4784,17 +4784,17 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Microsoft.WindowsAzure.Storage.Reference/9.3.2.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "Microsoft.ServiceFabric.Actors.Reference/6.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
     "Microsoft.ServiceFabric.Services.Remoting.Reference/6.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Microsoft.WindowsAzure.Storage.Reference/9.3.2.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

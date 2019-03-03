@@ -1,14 +1,8 @@
-﻿declare var _SupercondActor: SupercondActor.ISupercondActor;
-
-// for API only
-declare var _SupercondActor_Request: SupercondActor.IApiRequest;
-declare var _SupercondActor_Response: SupercondActor.IApiResponse;
-
-declare namespace SupercondActor {
+﻿declare namespace SupercondActor {
 
     interface ISupercondActor {
         Logger: SupercondActor.IPlatformLogger;
-        Context: SupercondActor.IPlatformContext;
+        Service: SupercondActor.IPlatformContext;
         Config: SupercondActor.IPlatformConfig;
     }
 
@@ -22,8 +16,8 @@ declare namespace SupercondActor {
     }
 
     interface IKeyValuePair {
-        Key: string;
-        Value: string;
+        key: string;
+        value: string;
     }
 
     interface IApiResponse {
@@ -166,6 +160,12 @@ declare namespace SupercondActor {
         callScheduledServiceAsync(serviceID: string, paramObj: any, appUrl?: string): Promise<any>;
 
         /**
+         * Get an array of ApplicationInfo objects representing all Business Platform applications
+         * @returns {Promise<IApplicationInfo[]>} - Promise resolving to the array of ApplicationInfo objects
+         */
+        getApplicationsAsync(): Promise<IApplicationInfo[]>;
+
+        /**
          * Create a new empty Business Platform application
          * @param {string} appUrl - Service Fabric URI for the application
          * @returns {Promise<string>} - Promise resolving to the Service Fabric URI for the application
@@ -190,6 +190,14 @@ declare namespace SupercondActor {
         tenantID: string;
     }
 
+    interface IApplicationInfo {
+        applicationName: string;
+        applicationTypeName: string;
+        applicationTypeVersion: string;
+        applicationStatus: number;
+        healthState: number;
+    }
+
     interface IScheduledServiceInfo {
         currentAppVersion: string;
         descriptor: IScheduledServiceConfig;
@@ -206,18 +214,15 @@ declare namespace SupercondActor {
     }
 
     interface IScheduledServiceConfig {
-        serviceID: string;
+        serviceID?: string;
         serviceName: string;
-        groupName: string;
-        metadataJson: string;
-        job: IScheduledJobConfig;
-        removalRequested: boolean;
-    }
-
-    interface IScheduledJobConfig {
-        jobScript: string;
-        jobSchedule: IServiceJobSchedule;
-        stopRequested: boolean;
+        groupName?: string;
+        metadataJson?: string;
+        instanceCount?: number;
+        serviceScript?: string;
+        jobSchedule?: IServiceJobSchedule;
+        stopRequested?: boolean;
+        removalRequested?: boolean;
     }
 
     interface IServiceJobSchedule {
@@ -227,17 +232,18 @@ declare namespace SupercondActor {
     }
 
     interface IApiServiceConfig {
-        serviceUri: string;
+        serviceID?: string;
         serviceName: string;
-        groupName: string;
+        groupName?: string;
         instanceCount: number;
-        metadataJson: string;
-        serviceScript: string;
+        metadataJson?: string;
+        serviceScript?: string;
         enableADAuthentication: boolean;
         configureProxy: boolean;
-        proxyConfiguration: IKeyValuePair[];
+        proxyConfiguration?: IKeyValuePair[];
         serveFiles: boolean;
-        filesConfig: IApiServiceFiles;
+        filesConfig?: IApiServiceFiles;
+        stopRequested?: boolean;
     }
 
     interface IApiServiceFiles {
@@ -246,12 +252,13 @@ declare namespace SupercondActor {
     }
 
     interface ILongRunningServiceConfig {
-        serviceUri: string;
+        serviceID?: string;
         serviceName: string;
-        groupName: string;
+        groupName?: string;
         instanceCount: number;
-        metadataJson: string;
-        serviceScript: string;
+        metadataJson?: string;
+        serviceScript?: string;
+        stopRequested?: boolean;
     }
 
     interface IApiServiceState {
