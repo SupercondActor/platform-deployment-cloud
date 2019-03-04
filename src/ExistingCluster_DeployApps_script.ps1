@@ -273,6 +273,8 @@ $serviceAppName = "SupercondActor.Platform.BusinessServicesApp"
 $serviceAppType = "SupercondActor.Platform.BusinessServicesAppType"
 $serviceInstanceName = ("fabric:/" + $serviceAppName + ".01")
 
+$busAppParams = @{"SupercondActor.Platform.SF.LongRunningService_InstanceCount" = "1"; "SupercondActor.Platform.SF.ApiService_AuthClientID" = $azureAdApp.ApplicationId.Guid.ToString(); "SupercondActor.Platform.SF.ApiService_AuthTenantID" = $subscription.TenantId}
+
 # Copy the application package to the cluster image store.
 Copy-ServiceFabricApplicationPackage $servicePackagePath -ApplicationPackagePathInImageStore $serviceAppName -ShowProgress
 
@@ -283,7 +285,7 @@ Register-ServiceFabricApplicationType -ApplicationPathInImageStore $serviceAppNa
 Remove-ServiceFabricApplicationPackage -ApplicationPackagePathInImageStore $serviceAppName
 
 # Create the application instance.
-New-ServiceFabricApplication -ApplicationName $serviceInstanceName -ApplicationTypeName $serviceAppType -ApplicationTypeVersion 1.0.0
+New-ServiceFabricApplication -ApplicationName $serviceInstanceName -ApplicationTypeName $serviceAppType -ApplicationTypeVersion 1.0.0 -ApplicationParameter $busAppParams
 
 
 Write-Host ((Get-Date -Format T) + " - All done!") -ForegroundColor Green
