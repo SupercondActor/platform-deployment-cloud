@@ -191,8 +191,8 @@ $armParameters = @{
     vmInstanceCount         = $clusterSize;
     vmNodeSize              = $vmSKU;
     aadTenantId             = $tenantId;
-    aadClusterApplicationId = $clusterWebAppId # $ConfObj.WebAppId;
-    aadClientApplicationId  = $clusterNativeClientAppId # $ConfObj.NativeClientAppId;
+    aadClusterApplicationId = $clusterWebAppId
+    aadClientApplicationId  = $clusterNativeClientAppId
     omsSku                  = $omsSku;
 }
 
