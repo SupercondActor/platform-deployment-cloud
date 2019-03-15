@@ -19,6 +19,8 @@ $certPassword = ""
 
 # End of the parameters section ========================================================
 
+### Don't remove this ID:
+[Microsoft.Azure.Common.Authentication.AzureSession]::ClientFactory.AddUserAgent("pid-a01abf25-0999-4282-97d0-a0a07f8cb1c1")
 
 # current folder
 $path = $PSScriptRoot

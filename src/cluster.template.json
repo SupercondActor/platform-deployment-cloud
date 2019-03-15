@@ -47,57 +47,6 @@
     "vmNodeSize": {
       "type": "string",
       "defaultValue": "Standard_D2_V2"
-    },
-    "aadTenantId": {
-      "type": "string"
-    },
-    "setADAuth": {
-      "type": "string",
-      "defaultValue": "Yes"
-    },
-    "aadClusterApplicationId": {
-      "type": "string"
-    },
-    "aadClientApplicationId": {
-      "type": "string"
-    },
-    "omsWorkspacename": {
-      "type": "string",
-      "defaultValue": "[toLower(concat(parameters('namePart'), 'oms'))]",
-      "metadata": {
-        "description": "Name of your OMS Log Analytics Workspace"
-      }
-    },
-    "omsRegion": {
-      "type": "string",
-      "defaultValue": "East US",
-      "allowedValues": [
-        "Australia Southeast",
-        "Canada Central",
-        "Central India",
-        "East US",
-        "Japan East",
-        "Southeast Asia",
-        "UK South",
-        "West Europe",
-        "West Central US"
-      ],
-      "metadata": {
-        "description": "Specify the Azure Region for your OMS workspace"
-      }
-    },
-    "omsSku": {
-      "type": "string",
-      "allowedValues": [
-        "Free",
-        "Standalone",
-        "PerNode",
-        "PerGB2018"
-      ],
-      "defaultValue": "PerGB2018",
-      "metadata": {
-        "description": "Specifies the service tier of the workspace: Standalone, PerNode, Per-GB"
-      }
     }
   },
   "variables": {
@@ -130,11 +79,22 @@
     "vmImageOffer": "WindowsServer",
     "vmImageSku": "2016-Datacenter-with-Containers",
     "vmImageVersion": "latest",
-    "rdpUserName": "rdpadmin",
-    "omsSolutionName": "[Concat('ServiceFabric', '(', parameters('omsWorkspacename'), ')')]",
-    "omsSolution": "ServiceFabric"
+    "rdpUserName": "rdpadmin"
   },
   "resources": [
+    {
+      "apiVersion": "2018-02-01",
+      "name": "pid-a01abf25-0999-4282-97d0-a0a07f8cb1c1",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": []
+        }
+      }
+    },
     {
       "apiVersion": "2016-01-01",
       "type": "Microsoft.Storage/storageAccounts",
@@ -373,7 +333,7 @@
                   },
                   "publisher": "Microsoft.Azure.ServiceFabric",
                   "settings": {
-                    "clusterEndpoint": "[reference(concat(variables('clusterName'),parameters('setADAuth'))).clusterEndpoint]",
+                    "clusterEndpoint": "[reference(concat(variables('clusterName'),'AD')).clusterEndpoint]",
                     "nodeTypeRef": "[variables('vmNodeType0Name')]",
                     "enableParallelJobs": true,
                     "dataPath": "D:\\\\SvcFab",
@@ -435,21 +395,6 @@
                     }
                   },
                   "typeHandlerVersion": "1.5"
-                }
-              },
-              {
-                "name": "[concat(variables('vmNodeType0Name'),'OMS')]",
-                "properties": {
-                  "publisher": "Microsoft.EnterpriseCloud.Monitoring",
-                  "type": "MicrosoftMonitoringAgent",
-                  "typeHandlerVersion": "1.0",
-                  "autoUpgradeMinorVersion": true,
-                  "settings": {
-                    "workspaceId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('omsWorkspacename')), '2015-11-01-preview').customerId]"
-                  },
-                  "protectedSettings": {
-                    "workspaceKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('omsWorkspacename')),'2015-11-01-preview').primarySharedKey]"
-                  }
                 }
               }
             ]
@@ -528,75 +473,8 @@
     {
       "apiVersion": "2017-07-01-preview",
       "type": "Microsoft.ServiceFabric/clusters",
-      "name": "[concat(variables('clusterName'),'Graph')]",
-      "location": "[resourceGroup().location]",
-      "condition": "[equals(parameters('setADAuth'), 'Graph')]",
-      "dependsOn": [
-        "[variables('supportLogStorageAccountName')]"
-      ],
-      "properties": {
-        "certificate": {
-          "thumbprint": "[parameters('certificateThumbprint')]",
-          "x509StoreName": "[variables('certificateStoreValue')]"
-        },
-        "clientCertificateCommonNames": [],
-        "clientCertificateThumbprints": [],
-        "diagnosticsStorageAccountConfig": {
-          "blobEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.blob]",
-          "protectedAccountKeyName": "StorageAccountKey1",
-          "queueEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.queue]",
-          "storageAccountName": "[variables('supportLogStorageAccountName')]",
-          "tableEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('supportLogStorageAccountName')), '2016-01-01').primaryEndpoints.table]"
-        },
-        "fabricSettings": [
-          {
-            "parameters": [
-              {
-                "name": "ClusterProtectionLevel",
-                "value": "EncryptAndSign"
-              }
-            ],
-            "name": "Security"
-          }
-        ],
-        "addonFeatures": [
-          "DnsService"
-        ],
-        "managementEndpoint": "[concat('https://', reference(variables('lbIPName')).dnsSettings.fqdn, ':', variables('fabricHttpGatewayPort'))]",
-        "nodeTypes": [
-          {
-            "name": "[variables('vmNodeType0Name')]",
-            "applicationPorts": {
-              "endPort": "[variables('applicationEndPort')]",
-              "startPort": "[variables('applicationStartPort')]"
-            },
-            "clientConnectionEndpointPort": "[variables('fabricTcpGatewayPort')]",
-            "durabilityLevel": "[parameters('durabilityLevel')]",
-            "ephemeralPorts": {
-              "endPort": "[variables('ephemeralEndPort')]",
-              "startPort": "[variables('ephemeralStartPort')]"
-            },
-            "httpGatewayEndpointPort": "[variables('fabricHttpGatewayPort')]",
-            "isPrimary": true,
-            "vmInstanceCount": "[parameters('vmInstanceCount')]"
-          }
-        ],
-        "reliabilityLevel": "[parameters('reliabilityLevel')]",
-        "upgradeMode": "Automatic",
-        "vmImage": "Windows",
-        "azureActiveDirectory": {
-          "tenantId": "[parameters('aadTenantId')]",
-          "clusterApplication": "[parameters('aadClusterApplicationId')]",
-          "clientApplication": "[parameters('aadClientApplicationId')]"
-        }
-      }
-    },
-    {
-      "apiVersion": "2017-07-01-preview",
-      "type": "Microsoft.ServiceFabric/clusters",
       "name": "[concat(variables('clusterName'),'AD')]",
       "location": "[resourceGroup().location]",
-      "condition": "[equals(parameters('setADAuth'), 'AD')]",
       "dependsOn": [
         "[variables('supportLogStorageAccountName')]"
       ],
@@ -651,83 +529,7 @@
         "upgradeMode": "Automatic",
         "vmImage": "Windows"
       }
-    },
-    {
-      "apiVersion": "2015-11-01-preview",
-      "location": "[parameters('omsRegion')]",
-      "name": "[parameters('omsWorkspacename')]",
-      "type": "Microsoft.OperationalInsights/workspaces",
-      "properties": {
-        "sku": {
-          "name": "[parameters('omsSku')]"
-        }
-      },
-      "resources": [
-        {
-          "apiVersion": "2015-11-01-preview",
-          "name": "[concat(variables('applicationDiagnosticsStorageAccountName'),parameters('omsWorkspacename'))]",
-          "type": "storageinsightconfigs",
-          "dependsOn": [
-            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsWorkspacename'))]",
-            "[concat('Microsoft.Storage/storageAccounts/', variables('applicationDiagnosticsStorageAccountName'))]"
-          ],
-          "properties": {
-            "containers": [],
-            "tables": [
-              "WADServiceFabric*EventTable",
-              "WADWindowsEventLogsTable",
-              "WADETWEventTable"
-            ],
-            "storageAccount": {
-              "id": "[resourceId('Microsoft.Storage/storageaccounts/', variables('applicationDiagnosticsStorageAccountName'))]",
-              "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('applicationDiagnosticsStorageAccountName')),'2015-06-15').key1]"
-            }
-          }
-        },
-        {
-          "apiVersion": "2015-11-01-preview",
-          "name": "System",
-          "type": "datasources",
-          "dependsOn": [
-            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsWorkspacename'))]"
-          ],
-          "kind": "WindowsEvent",
-          "properties": {
-            "eventLogName": "System",
-            "eventTypes": [
-              {
-                "eventType": "Error"
-              },
-              {
-                "eventType": "Warning"
-              },
-              {
-                "eventType": "Information"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "apiVersion": "2015-11-01-preview",
-      "location": "[parameters('omsRegion')]",
-      "name": "[variables('omsSolutionName')]",
-      "type": "Microsoft.OperationsManagement/solutions",
-      "dependsOn": [
-        "[concat('Microsoft.OperationalInsights/workspaces/', parameters('OMSWorkspacename'))]"
-      ],
-      "properties": {
-        "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces/', parameters('omsWorkspacename'))]"
-      },
-      "plan": {
-        "name": "[variables('omsSolutionName')]",
-        "publisher": "Microsoft",
-        "product": "[Concat('OMSGallery/', variables('omsSolution'))]",
-        "promotionCode": ""
-      }
     }
   ],
-  "outputs": {
-  }
+  "outputs": {}
 }

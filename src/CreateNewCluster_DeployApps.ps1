@@ -25,9 +25,6 @@ $clusterSize = 3
 # Type of VM to use in the cluster
 $vmSKU = "Standard_D2_v2"
 
-# Operations Management SKU. Can be "Free", "PerGB2018", "Standalone", "PerNode"
-$omsSku = "PerGB2018"
-
 # Certificate password
 #  (if not provided will be generated and written to the ClusterInfo file):
 $certPassword = ""
@@ -37,6 +34,9 @@ $certPassword = ""
 $vmAdminPassword = ""
 
 # End of the parameters section ========================================================
+
+### Don't remove this ID:
+[Microsoft.Azure.Common.Authentication.AzureSession]::ClientFactory.AddUserAgent("pid-a01abf25-0999-4282-97d0-a0a07f8cb1c1")
 
 ### Prerequisites verification
 try {
@@ -100,67 +100,18 @@ else {
     exit
 }
 
-$HavePerms = ""
-Write-Host "> You must have MS Graph Admin rights in this subscription
->   to set up OAuth user authentication for Cluster Manager and SupercondActor Manager applications.
->   Otherwise a simplified AD authentication will be set up for SupercondActor Manager only." -ForegroundColor Yellow
-while (($HavePerms -ne "y") -and ($HavePerms -ne "n")) {
-    Write-Host 'Do you have MS Graph admin rights in this Azure subscription?' -ForegroundColor Magenta -NoNewline
-    $HavePerms = Read-Host -Prompt ' (y/n)'
-}
-if ($HavePerms -eq "y") {
-    $setADAuth = "Graph"
-}
-else {
-    $setADAuth = "AD"
-}
-Write-Host ""
-
-### AAD
-$currentAzureContext = Get-AzureRmContext
-$accountId = $currentAzureContext.Account.Id
-$app_role_name = "Admin"
 $tenantId = $subscription.TenantId[0].ToString()
-
-if ($setADAuth -eq "Graph") {
-    Write-Host ("Enter your Azure Graph admin credentials in the pop-up window (it might be behind current window) ...") -ForegroundColor Magenta
-
-    $ConfObj = & $PSScriptRoot\AzureScripts\AADTool\SetupApplications.ps1 -TenantId $tenantId -ClusterName $clusterName -WebApplicationReplyUrl $clusterManagerAppReplyUrl
-}
 
 $rpUrl = ("https://" + $subname + "/*")
 
-if (($setADAuth -eq "AD") -or $ConfObj.AppPermissionsError) {
-    ### Create Azure AD Application Registration for authentication
-    $homeUri = ("https://" + $subname) 
-    $azureAdAppName = ("SupercondActor-auth-" + $clusterName)   
-    $appUri = ("https://" + $azureAdAppName)
-    Write-Host "$(Get-Date -Format T) - Creating Azure AD Application Registration '$azureAdAppName' ..."
+### Create Azure AD Application Registration for authentication
+$homeUri = ("https://" + $subname) 
+$azureAdAppName = ("SupercondActor-auth-" + $clusterName)   
+$appUri = ("https://" + $azureAdAppName)
+Write-Host "$(Get-Date -Format T) - Creating Azure AD Application Registration '$azureAdAppName' ..."
 
-    $azureAdApp = New-AzureRmADApplication -DisplayName $azureAdAppName -HomePage $homeUri -IdentifierUris $appUri -ReplyUrls $rpUrl
-    $webAppId = $azureAdApp.ApplicationId.ToString()
-
-    $clusterWebAppId = "";
-    $clusterNativeClientAppId = "";
-}
-if (($setADAuth -eq "Graph") -and (-not ($ConfObj.AppPermissionsError))) {
-    $webAppId = $ConfObj.WebAppId.ToString()
-    ### Add AD app reply URLs
-    $azureAdApp = Get-AzureRmADApplication -ApplicationId $webAppId  
-    $azureAdApp.ReplyUrls.Add($rpUrl);
-    $azureAdApp | Update-AzureRmADApplication -ReplyUrl $azureAdApp.ReplyUrls #| Out-Null
-
-    # Get the user to assign, and the service principal for the app to assign to
-    $user = Get-AzureADUser -ObjectId $accountId
-    $spId = $ConfObj.ServicePrincipalId
-    $appRole = $ConfObj.AppRoles | Where-Object { $_.DisplayName -eq $app_role_name }
-
-    # Assign the user to the app role
-    New-AzureADUserAppRoleAssignment -ObjectId $user.ObjectId -PrincipalId $user.ObjectId -ResourceId $spId -Id $appRole.Id  | Out-Null
-
-    $clusterWebAppId = $ConfObj.WebAppId;
-    $clusterNativeClientAppId = $ConfObj.NativeClientAppId;
-}
+$azureAdApp = New-AzureRmADApplication -DisplayName $azureAdAppName -HomePage $homeUri -IdentifierUris $appUri -ReplyUrls $rpUrl
+$webAppId = $azureAdApp.ApplicationId.ToString()
 
 Write-Host "$(Get-Date -Format T) - Application authentication configured." -ForegroundColor Green -NoNewline
 Write-Host " Creating resource group ..."
@@ -187,13 +138,8 @@ $armParameters = @{
     certificateUrlValue     = $certUrl;
     durabilityLevel         = "Bronze";
     reliabilityLevel        = "Bronze";
-    setADAuth               = $setADAuth;
     vmInstanceCount         = $clusterSize;
     vmNodeSize              = $vmSKU;
-    aadTenantId             = $tenantId;
-    aadClusterApplicationId = $clusterWebAppId
-    aadClientApplicationId  = $clusterNativeClientAppId
-    omsSku                  = $omsSku;
 }
 
 # Write-Host $armParameters
@@ -261,6 +207,16 @@ Write-Host $platformManagerUrl -ForegroundColor Magenta
 Write-Host ""
 Write-Host "Cluster Manager URL:"
 Write-Host $clusterManagerUrl
+Write-Host ""
+
+Write-Host "IMPORTANT:" -ForegroundColor Red
+Write-Host ("Set Required Permissions for your App Registation '" + $azureAdAppName + "' in Azure Portal!") -ForegroundColor Yellow
+Write-Host "Navigate to:" -ForegroundColor Yellow
+Write-Host ("https://portal.azure.com/#blade/Microsoft_AAD_IAM/ApplicationBlade/appId/$($azureAdApp.ApplicationId)/objectId/$($azureAdApp.ObjectId)") -ForegroundColor Magenta
+Write-Host "Click on 'Settings' > 'Required permissions' > 'Add' > 'Select an API' > 'Windows Azure Active Directory'" -ForegroundColor Yellow
+Write-Host "Click 'Select'" -ForegroundColor Yellow
+Write-Host "Set checkbox: 'Sign in and read user profile'" -ForegroundColor Yellow
+Write-Host "Click 'Select' and 'Done'" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "Press Enter to exit"
